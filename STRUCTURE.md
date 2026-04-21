@@ -57,7 +57,8 @@ The application is a single FastAPI process. `POST /run` uses FastAPI `Backgroun
 ```
 POST /run  (returns 202 immediately, or 200 on cache hit)
   └─ create_run_record()        # validate domain + ownership
-       ├─ get_cached_run_today() # cache hit → return 200 with cached run + cache_hit: true
+       ├─ get_cached_run_today() # exact-params cache hit (CON-120) → return 200 with cached run + cache_hit: true
+       ├─ get_covering_run_today() # subset guard (CON-121): wider run exists → create new completed run from filtered articles + cache_hit: true
        ├─ get_running_run_for_domain() # concurrent guard → 409
        └─ create_run()          # INSERT run row → run_id
   └─ BackgroundTasks.add_task(run_pipeline)  # skipped on cache hit
@@ -81,7 +82,8 @@ GET /runs/{id}  →  live status poll
 - Pass 1 (relevance filter) fails open: if a batch errors, those articles are kept.
 - Domain config is loaded fresh from the DB on every `POST /run` — adding a new domain via the API takes effect immediately without restarting.
 - The LLM never decides what tools to call — all orchestration is in Python.
-- Same-day cache guard: if a completed run with identical `(domain, days_back, focus, model)` already exists for the current UTC day, `POST /run` returns it immediately with `cache_hit: true` (HTTP 200) without dispatching a new pipeline. `force: true` bypasses this.
+- Same-day cache guard (CON-120): if a completed run with identical `(domain, days_back, focus, model)` already exists for the current UTC day, `POST /run` returns it immediately with `cache_hit: true` (HTTP 200) without dispatching a new pipeline. `force: true` bypasses this.
+- Time-window subset guard (CON-121): if no exact cache hit, but a completed run with a *wider* `days_back` (same domain, focus, model, UTC day) exists, a new completed run is created immediately from the filtered article subset and returned with `cache_hit: true`. Articles with unparseable published dates are included (fail-open). `force: true` bypasses this.
 
 ## Testing
 
@@ -110,6 +112,7 @@ pytest
 | `test_runs.py` | `POST /run`: 202 + DB record created; unknown domain → 404; non-owner → 403 |
 | `test_guard_chain.py` | CON-111 concurrent guard → 409 with `run_id`; `force=true` bypasses guard |
 | `test_cache_guard.py` | CON-120 same-day cache guard → 200 with `cache_hit: true`; different params miss cache; `force=true` bypasses; yesterday's run is not a hit |
+| `test_subset_guard.py` | CON-121 time-window subset guard → 200 with `cache_hit: true`; different model/narrower window miss; `force=true` bypasses; yesterday's wider run is not a hit |
 | `test_pagination.py` | Cursor advances on `GET /runs` and `GET /runs/{id}/articles`; last page has `next_cursor: null` |
 | `test_webhook.py` | `callback_url` POSTed with `status=completed` on success and `status=failed` on pipeline error |
 | `test_ownership.py` | `POST /sources` and `PATCH /domains/{id}` reject non-owners → 403; null-owner domains visible to all users |

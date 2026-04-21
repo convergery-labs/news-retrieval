@@ -58,7 +58,11 @@ All write endpoints require an `Authorization: Bearer <token>` header. Admin-onl
 
 Submits a pipeline run. Returns `202` immediately with a `run_id`; the pipeline runs in the background.
 
-If a completed run with identical parameters (`domain`, `days_back`, `focus`, `model`) already exists for the current UTC day, returns `200` with the existing run's fields and `cache_hit: true` — no pipeline is dispatched. Use `force: true` to bypass this and always start a fresh run.
+If a completed run with identical parameters (`domain`, `days_back`, `focus`, `model`) already exists for the current UTC day, returns `200` with the existing run's fields and `cache_hit: true` — no pipeline is dispatched.
+
+If no exact match exists but a completed run with a **wider** `days_back` (same domain, focus, model, UTC day) does, the server creates a new completed run from the filtered article subset and returns it immediately with `cache_hit: true` — still no pipeline is dispatched.
+
+Use `force: true` to bypass both cache checks and always start a fresh run.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
