@@ -1,5 +1,8 @@
 # news-retrieval
 
+> **This repository has been archived.**
+> Development has moved to [convergery-labs/ocn](https://github.com/convergery-labs/ocn) under [`news-retrieval/`](https://github.com/convergery-labs/ocn/tree/main/news-retrieval).
+
 Fetches RSS feeds and filters articles by relevance to a domain using LLMs. Returns structured JSON with articles grouped by run.
 
 ## Stack
